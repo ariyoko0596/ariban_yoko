@@ -1,0 +1,34 @@
+---
+// src/components/Footer.astro
+---
+<footer>
+    <div class="footer-inner reveal">
+        <p class="footer-title">Ariban Yoko — Backend Engineer & Streamer</p>
+        <p>© 2026 All rights reserved. Built with Astro & Supabase.</p>
+    </div>
+</footer>
+
+<style>
+    footer {
+        background-color: var(--bg-card);
+        border-top: 1px solid var(--border-color);
+        padding: 40px 0;
+        text-align: center;
+        font-size: 12px;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--text-muted);
+        margin-top: auto;
+    }
+    .footer-inner {
+        max-width: 1050px;
+        margin: 0 auto;
+        padding: 0 32px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .footer-title {
+        color: var(--text-main);
+        font-weight: bold;
+    }
+</style>

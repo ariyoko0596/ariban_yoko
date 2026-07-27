@@ -1,0 +1,174 @@
+---
+// src/pages/projects/[id].astro
+export const prerender = false;
+
+import Layout from '../../layouts/Layout.astro';
+import { supabase } from '../../lib/supabase.js';
+import { marked } from 'marked';
+
+const { id } = Astro.params;
+
+// 1. Ambil data proyek spesifik
+const { data: project, error } = await supabase
+    .from('projects')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+if (error || !project) return Astro.redirect('/404');
+
+// 2. Tangkap Komentar Diskusi Proyek (POST)
+let commentStatus = '';
+let isCommentError = false;
+
+if (Astro.request.method === 'POST') {
+    const formData = await Astro.request.formData();
+    const commentAction = formData.get('comment_action')?.toString();
+
+    if (commentAction === 'add_comment') {
+        const author = formData.get('author')?.toString().trim();
+        const content = formData.get('content')?.toString().trim();
+
+        if (!author || !content) {
+            isCommentError = true;
+            commentStatus = 'Nama dan isi diskusi wajib diisi!';
+        } else {
+            const { error: commentError } = await supabase.from('project_comments').insert([
+                { project_id: id, author, content }
+            ]);
+
+            if (commentError) {
+                isCommentError = true;
+                commentStatus = `Gagal mengirim diskusi: ${commentError.message}`;
+            } else {
+                commentStatus = 'Komentar diskusi berhasil dipublikasikan!';
+            }
+        }
+    }
+}
+
+// 3. Ambil daftar komentar untuk proyek ini
+const { data: commentsList } = await supabase
+    .from('project_comments')
+    .select('*')
+    .eq('project_id', id)
+    .order('created_at', { ascending: false });
+
+const techList = Array.isArray(project.tech_stack) 
+    ? project.tech_stack 
+    : (project.tech_stack ? project.tech_stack.split(',').map((s: string) => s.trim()) : []);
+
+const parsedDescription = marked.parse(project.description || '');
+---
+
+<Layout title={`${project.title} | Architecture`} description={project.description} image={project.image_url}>
+    <style>
+        .project-wrapper { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px; }
+        .back-link { font-size: 12px; font-family: 'JetBrains Mono', monospace; color: var(--accent-color); font-weight: bold; }
+        .back-link:hover { text-decoration: underline; }
+
+        .project-header { border-bottom: 1px solid var(--border-color); padding-bottom: 24px; display: flex; flex-direction: column; gap: 16px; }
+        .tech-badge-container { display: flex; flex-wrap: wrap; gap: 8px; }
+        .tech-badge { font-size: 11px; padding: 4px 12px; background: rgba(14, 165, 233, 0.1); color: var(--accent-secondary); font-family: 'JetBrains Mono', monospace; border-radius: 4px; border: 1px solid rgba(14, 165, 233, 0.2); font-weight: bold; }
+        
+        .project-title { font-size: 42px; font-weight: 800; color: var(--text-main); line-height: 1.2; letter-spacing: -0.5px; }
+        
+        .project-image-box { width: 100%; height: 420px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); background-color: var(--bg-card); }
+        .project-image-box img { width: 100%; height: 100%; object-fit: cover; }
+
+        .content-card { background-color: var(--bg-card); border: 1px solid var(--border-color); padding: 40px; border-radius: 8px; }
+        .content-card-header { border-bottom: 1px solid var(--border-color); padding-bottom: 16px; font-size: 14px; font-weight: bold; color: var(--accent-color); text-transform: uppercase; font-family: 'JetBrains Mono', monospace; margin-bottom: 20px; }
+        
+        .markdown-body { color: var(--text-muted); font-size: 15px; line-height: 1.8; }
+        .markdown-body h2 { color: var(--text-main); font-size: 22px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin: 24px 0 12px 0; }
+        .markdown-body p, .markdown-body ul { margin-bottom: 16px; }
+        .markdown-body code { background-color: var(--bg-main); color: var(--accent-secondary); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 13px; border: 1px solid var(--border-color); }
+        .markdown-body pre code { display: block; padding: 16px; overflow-x: auto; margin: 16px 0; }
+        
+        .mermaid-wrapper { background: var(--bg-main); padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); text-align: center; margin: 20px 0; overflow-x: auto;}
+    </style>
+
+    <div class="project-wrapper">
+        <div class="reveal">
+            <a href="/#portfolio" class="back-link">← KEMBALI KE BERANDA</a>
+        </div>
+
+        <div class="project-header reveal">
+            <div class="tech-badge-container">
+                {techList.map((tech: string) => ( <span class="tech-badge">{tech}</span> ))}
+            </div>
+            <h1 class="project-title">{project.title}</h1>
+        </div>
+
+        {project.image_url && (
+            <div class="project-image-box reveal">
+                <img src={project.image_url} alt={project.title} loading="lazy" />
+            </div>
+        )}
+
+        <div class="content-card reveal">
+            <div class="content-card-header">// Technical Architecture Documentation</div>
+            <div class="markdown-body" set:html={parsedDescription} />
+        </div>
+
+        <!-- DISKUSI / KOMENTAR PROYEK -->
+        <div class="content-card reveal" style="margin-top: 20px;">
+            <div class="content-card-header">// Developer & Tech Discussion</div>
+            
+            {commentStatus && (
+                <div style={`padding: 12px; margin-bottom: 20px; font-size: 12px; border-radius: 4px; background: ${isCommentError ? 'rgba(239, 68, 68, 0.1)' : 'rgba(234, 179, 8, 0.1)'}; color: ${isCommentError ? '#ef4444' : 'var(--accent-color)'}; border: 1px solid ${isCommentError ? '#ef4444' : 'var(--accent-color)'};`}>
+                    {commentStatus}
+                </div>
+            )}
+
+            <form method="POST" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 40px;">
+                <input type="hidden" name="comment_action" value="add_comment" />
+                <div>
+                    <label style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; font-weight: bold;">Nama / Profesional</label>
+                    <input type="text" name="author" required placeholder="Contoh: Senior Engineer" style="width: 100%; background: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-main); padding: 10px; border-radius: 4px; font-size: 13px; outline: none;" />
+                </div>
+                <div>
+                    <label style="display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; font-weight: bold;">Pertanyaan atau Tanggapan Teknis</label>
+                    <textarea name="content" rows="3" required placeholder="Diskusikan arsitektur sistem ini..." style="width: 100%; background: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-main); padding: 10px; border-radius: 4px; font-size: 13px; outline: none; font-family: 'Inter', sans-serif;"></textarea>
+                </div>
+                <button type="submit" style="width: fit-content; background: var(--accent-color); color: var(--bg-main); font-weight: bold; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; text-transform: uppercase; font-size: 11px; letter-spacing: 1px;">Kirim Komentar</button>
+            </form>
+
+            <h3 style="font-size: 16px; font-weight: bold; color: var(--text-main); margin-bottom: 16px;">Diskusi Terbaru ({commentsList?.length || 0})</h3>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                {commentsList && commentsList.length > 0 ? (
+                    commentsList.map((comm) => (
+                        <div style="background: var(--bg-main); border: 1px solid var(--border-color); padding: 16px; border-radius: 6px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <strong style="font-size: 13px; color: var(--accent-secondary);">{comm.author}</strong>
+                                <span style="font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--text-muted);">{new Date(comm.created_at).toLocaleDateString()}</span>
+                            </div>
+                            <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5;">{comm.content}</p>
+                        </div>
+                    ))
+                ) : (
+                    <p style="font-size: 12px; font-family: monospace; color: var(--text-muted);">Belum ada diskusi teknis untuk proyek ini.</p>
+                )}
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        
+        document.addEventListener('astro:page-load', async () => {
+            mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+            
+            const mermaidBlocks = document.querySelectorAll('.language-mermaid');
+            mermaidBlocks.forEach((block) => {
+                const parentPre = block.parentElement;
+                const wrapper = document.createElement('div');
+                wrapper.className = 'mermaid-wrapper';
+                wrapper.innerHTML = `<div class="mermaid">${block.textContent}</div>`;
+                parentPre.replaceWith(wrapper);
+            });
+            
+            await mermaid.run();
+        });
+    </script>
+</Layout>

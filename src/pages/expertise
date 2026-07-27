@@ -1,0 +1,88 @@
+---
+// src/pages/expertise/[id].astro
+export const prerender = false;
+
+import Layout from '../../layouts/Layout.astro';
+import Navbar from '../../components/Navbar.astro';
+import Footer from '../../components/Footer.astro';
+import { supabase } from '../../lib/supabase.js';
+
+// Ambil ID dari parameter URL
+const { id } = Astro.params;
+
+// Ambil data keahlian spesifik berdasarkan ID dari Supabase
+const { data: expertise, error } = await supabase
+    .from('expertise')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+if (error || !expertise) {
+    return Astro.redirect('/404');
+}
+
+// Ambil pengaturan tema global untuk warna aksen
+const { data: settings } = await supabase.from('site_settings').select('*').single();
+const siteConfig = settings || { neon_color: '#bef264', site_title: 'Detail Keahlian' };
+---
+
+<Layout title={`${expertise.title} | Keahlian`}>
+    
+    <!-- CSS Dinamis untuk Warna Aksen -->
+    <style define:vars={{ customNeon: siteConfig.neon_color }}>
+        .text-neon-accent { color: var(--customNeon) !important; }
+        .border-neon-accent { border-color: var(--customNeon) !important; }
+        .bg-neon-accent { background-color: var(--customNeon) !important; }
+    </style>
+
+    <Navbar />
+
+    <main class="max-w-4xl mx-auto px-6 pt-36 pb-24 min-h-[80vh]">
+        <div class="mb-8">
+            <a href="/" class="text-xs font-mono text-gray-400 hover:text-neon-accent transition-colors">
+                ← KEMBALI KE BERANDA
+            </a>
+        </div>
+
+        <div class="border border-gray-800 bg-card-bg/30 backdrop-blur-xl p-8 md:p-12 relative overflow-hidden">
+            <div class="absolute -right-10 -top-10 text-9xl opacity-5 select-none pointer-events-none">
+                {expertise.icon}
+            </div>
+
+            <div class="flex items-center gap-4 mb-6">
+                <span class="text-4xl p-4 bg-neon-accent/10 border border-neon-accent/20 rounded-xl">
+                    {expertise.icon}
+                </span>
+                <div>
+                    <span class="text-xs uppercase tracking-widest text-neon-accent font-mono block mb-1">KODE & KOMPETENSI SPESIFIK</span>
+                    <h1 class="font-heading text-3xl md:text-5xl font-bold text-text-main">{expertise.title}</h1>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-800 pt-8 mt-8">
+                <h2 class="text-xl font-heading font-bold text-text-main mb-4">Ringkasan & Cakupan Operasional</h2>
+                <p class="text-gray-300 text-lg leading-relaxed mb-8">
+                    {expertise.description}
+                </p>
+
+                <div class="p-6 border border-gray-800 bg-bg-primary/50">
+                    <h3 class="text-sm font-mono text-neon-accent mb-2">CATATAN TEKNIS / WORKFLOW</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">
+                        Halaman ini dihasilkan secara dinamis menggunakan sistem Low-Code CMS. Anda dapat memperbarui dokumentasi atau detail mendalam mengenai keahlian ini kapan saja langsung dari panel admin.
+                    </p>
+                </div>
+            </div>
+
+            <div class="mt-12 flex gap-4">
+                <a href="/#portofolio" class="px-6 py-3 bg-neon-accent text-bg-primary font-heading font-bold text-sm hover:bg-opacity-90 transition-all">
+                    LIHAT PROYEK TERKAIT
+                </a>
+                <a href="/#kontak" class="px-6 py-3 bg-transparent text-text-main border border-gray-800 hover:border-neon-accent font-heading font-bold text-sm transition-all">
+                    DISKUSIKAN KOLABORASI
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <Footer />
+</Layout>

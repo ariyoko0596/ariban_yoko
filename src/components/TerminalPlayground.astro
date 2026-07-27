@@ -1,0 +1,96 @@
+---
+// src/components/TerminalPlayground.astro
+---
+<div class="terminal-box">
+    <div class="terminal-header">
+        <div class="terminal-dots">
+            <span class="dot red"></span>
+            <span class="dot yellow"></span>
+            <span class="dot green"></span>
+        </div>
+        <div class="terminal-title">yoko@backend-server:~ (zsh)</div>
+    </div>
+    <div id="terminalBody" class="terminal-body">
+        <div class="output-line">Sistem Terminal v2.4.0 — Ketik <span class="highlight-cmd">'help'</span> untuk melihat daftar perintah.</div>
+        <div class="output-line">------------------------------------------------------------</div>
+    </div>
+    <div class="terminal-input-row" id="terminalPromptRow">
+        <span class="prompt-symbol">❯</span>
+        <input type="text" id="terminalInput" autocomplete="off" spellcheck="false" />
+    </div>
+</div>
+
+<style>
+    .terminal-box { background-color: #090a0f; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; font-family: 'JetBrains Mono', monospace; box-shadow: 0 20px 40px rgba(0,0,0,0.5); margin: 40px 0; }
+    .terminal-header { background-color: #12151c; padding: 10px 16px; display: flex; align-items: center; border-bottom: 1px solid var(--border-color); }
+    .terminal-dots { display: flex; gap: 6px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .dot.red { background-color: #ef4444; }
+    .dot.yellow { background-color: #f59e0b; }
+    .dot.green { background-color: #10b981; }
+    .terminal-title { flex: 1; text-align: center; font-size: 11px; color: var(--text-muted); }
+
+    .terminal-body { padding: 16px; max-height: 260px; overflow-y: auto; font-size: 13px; display: flex; flex-direction: column; gap: 6px; color: #e2e8f0; }
+    .output-line { line-height: 1.5; word-break: break-all; }
+    .highlight-cmd { color: var(--accent-color); font-weight: bold; }
+    .command-echo { color: #94a3b8; }
+
+    .terminal-input-row { display: flex; align-items: center; padding: 10px 16px; background-color: #0d1117; border-top: 1px solid var(--border-color); cursor: text; }
+    .prompt-symbol { color: var(--accent-color); font-weight: bold; margin-right: 10px; }
+    #terminalInput { flex: 1; background: transparent; border: none; color: #ffffff; font-family: 'JetBrains Mono', monospace; font-size: 13px; outline: none; }
+</style>
+
+<script>
+    // Kamus Perintah (Command Pattern) agar mudah dikelola dan diperluas
+    const COMMAND_HANDLERS: Record<string, string> = {
+        help: `Perintah yang tersedia:<br>
+          &nbsp;&nbsp;<b>skills</b>    - Menampilkan tech stack utama<br>
+          &nbsp;&nbsp;<b>about</b>     - Ringkasan profil profesional<br>
+          &nbsp;&nbsp;<b>contact</b>   - Informasi kontak & media sosial<br>
+          &nbsp;&nbsp;<b>clear</b>     - Membersihkan layar terminal`,
+        skills: '<span style="color: #10b981;">[OK]</span> Stack: Python, Celery, Redis, FastAPI, Astro, Supabase, PostgreSQL.',
+        about: 'Ariban Yoko adalah Backend Engineer & Live Streamer yang berfokus pada performa sistem tinggi dan arsitektur skalabel.',
+        contact: 'Email: aribanyoko@gmail.com | LinkedIn & Instagram aktif.'
+    };
+
+    document.addEventListener('astro:page-load', () => {
+        const terminalBody = document.getElementById('terminalBody');
+        const terminalInput = document.getElementById('terminalInput') as HTMLInputElement;
+        const promptRow = document.getElementById('terminalPromptRow');
+
+        if (!terminalBody || !terminalInput || !promptRow) return;
+
+        // Fokus ke input saat area bawah terminal diklik
+        promptRow.addEventListener('click', () => terminalInput.focus());
+
+        terminalInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const command = terminalInput.value.trim().toLowerCase();
+                if (!command) return;
+
+                // Cetak echo perintah pengguna
+                const echoElement = document.createElement('div');
+                echoElement.className = 'output-line command-echo';
+                echoElement.textContent = `❯ ${command}`;
+                terminalBody.appendChild(echoElement);
+
+                // Eksekusi perintah
+                const responseElement = document.createElement('div');
+                responseElement.className = 'output-line';
+
+                if (command === 'clear') {
+                    terminalBody.innerHTML = '';
+                } else if (COMMAND_HANDLERS[command]) {
+                    responseElement.innerHTML = COMMAND_HANDLERS[command];
+                    terminalBody.appendChild(responseElement);
+                } else {
+                    responseElement.innerHTML = `<span style="color: #ef4444;">command not found: ${command}</span>. Ketik 'help' untuk panduan.`;
+                    terminalBody.appendChild(responseElement);
+                }
+
+                terminalInput.value = '';
+                terminalBody.scrollTop = terminalBody.scrollHeight;
+            }
+        });
+    });
+</script>

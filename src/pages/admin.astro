@@ -1,0 +1,857 @@
+---
+// src/pages/admin.astro
+export const prerender = false;
+
+import Layout from '../layouts/Layout.astro';
+import { supabase } from '../lib/supabase.js';
+
+// 1. CEK OTENTIKASI
+const accessToken = Astro.cookies.get('sb-access-token')?.value;
+const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
+
+if (!accessToken || !refreshToken) {
+    return Astro.redirect('/login');
+}
+
+const { error: authError } = await supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+});
+
+if (authError) {
+    Astro.cookies.delete('sb-access-token', { path: '/' });
+    Astro.cookies.delete('sb-refresh-token', { path: '/' });
+    return Astro.redirect('/login');
+}
+
+// 2. PROSES AKSI FORM (POST)
+let pesan = '';
+let isError = false;
+
+if (Astro.request.method === 'POST') {
+    const formData = await Astro.request.formData();
+    const action = formData.get('action')?.toString();
+    
+    // Logout
+    if (formData.has('logout')) {
+        await supabase.auth.signOut();
+        Astro.cookies.delete('sb-access-token', { path: '/' });
+        Astro.cookies.delete('sb-refresh-token', { path: '/' });
+        return Astro.redirect('/login');
+    }
+
+    // A. UPDATE PENGATURAN SITUS
+    if (action === 'update_settings') {
+        const siteTitle = formData.get('siteTitle')?.toString();
+        const heroBadge = formData.get('heroBadge')?.toString();
+        const heroTitle = formData.get('heroTitle')?.toString();
+        const heroDescription = formData.get('heroDescription')?.toString();
+        const neonColor = formData.get('neonColor')?.toString();
+        
+        const isMaintenance = formData.get('isMaintenance') === 'on';
+        const oldProfileImage = formData.get('oldProfileImage')?.toString() || '';
+        const profileFile = formData.get('profileFile');
+
+        let finalProfileImage = oldProfileImage;
+
+        if (profileFile && profileFile.size > 0) {
+            if (profileFile.size > 2 * 1024 * 1024) {
+                isError = true;
+                pesan = "Gagal: Ukuran foto profil terlalu besar! Maksimal 2MB.";
+            } else {
+                const fileName = `profile-main-${Date.now()}-${profileFile.name.replace(/\s+/g, '_')}`;
+                const arrayBuffer = await profileFile.arrayBuffer();
+                const buffer = new Uint8Array(arrayBuffer);
+
+                const { error: uploadError } = await supabase.storage
+                    .from('media')
+                    .upload(fileName, buffer, { contentType: profileFile.type });
+
+                if (uploadError) {
+                    isError = true;
+                    pesan = `Gagal mengunggah foto profil: ${uploadError.message}`;
+                } else {
+                    const { data: publicUrlData } = supabase.storage.from('media').getPublicUrl(fileName);
+                    finalProfileImage = publicUrlData.publicUrl;
+                }
+            }
+        }
+
+        if (!isError && siteTitle && heroTitle) {
+            const { error } = await supabase.from('site_settings').update({
+                site_title: siteTitle,
+                hero_badge: heroBadge,
+                hero_title: heroTitle,
+                hero_description: heroDescription,
+                neon_color: neonColor,
+                profile_image: finalProfileImage,
+                is_maintenance: isMaintenance,
+                updated_at: new Date()
+            }).eq('id', 1);
+
+            if (error) {
+                isError = true;
+                pesan = `Gagal memperbarui pengaturan: ${error.message}`;
+            } else {
+                pesan = "Pengaturan website & status maintenance berhasil diperbarui!";
+            }
+        }
+    }
+
+    // B. KELOLA PROYEK (TAMBAH & EDIT)
+    if (action === 'add_project') {
+        const title = formData.get('title')?.toString();
+        const description = formData.get('description')?.toString();
+        const techStack = formData.get('techStack')?.toString();
+        const urlInput = formData.get('imageUrl')?.toString();
+        const file = formData.get('file');
+
+        let finalImageUrl = urlInput || '';
+
+        if (file && file.size > 0) {
+            if (file.size > 2 * 1024 * 1024) {
+                isError = true;
+                pesan = "Gagal: Ukuran gambar proyek terlalu besar! Maksimal 2MB.";
+            } else {
+                const fileName = `proj-${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
+                const arrayBuffer = await file.arrayBuffer();
+                const buffer = new Uint8Array(arrayBuffer);
+
+                const { error: uploadError } = await supabase.storage
+                    .from('media')
+                    .upload(fileName, buffer, { contentType: file.type });
+
+                if (uploadError) {
+                    isError = true;
+                    pesan = `Gagal mengunggah gambar: ${uploadError.message}`;
+                } else {
+                    const { data: publicUrlData } = supabase.storage.from('media').getPublicUrl(fileName);
+                    finalImageUrl = publicUrlData.publicUrl;
+                }
+            }
+        }
+
+        if (!isError && title && description && techStack) {
+            const techArray = techStack.split(',').map(s => s.trim());
+            const { error } = await supabase.from('projects').insert([{ 
+                title, description, tech_stack: techArray, image_url: finalImageUrl 
+            }]);
+            if (error) { isError = true; pesan = error.message; } else { pesan = "Proyek baru ditambahkan!"; }
+        }
+    }
+
+    if (action === 'edit_project') {
+        const id = formData.get('id')?.toString();
+        const title = formData.get('title')?.toString();
+        const description = formData.get('description')?.toString();
+        const techStack = formData.get('techStack')?.toString();
+        const oldUrl = formData.get('oldUrl')?.toString() || '';
+        const file = formData.get('file');
+
+        let finalImageUrl = oldUrl;
+
+        if (file && file.size > 0) {
+            if (file.size > 2 * 1024 * 1024) {
+                isError = true;
+                pesan = "Gagal: Ukuran gambar baru terlalu besar! Maksimal 2MB.";
+            } else {
+                const fileName = `proj-${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
+                const arrayBuffer = await file.arrayBuffer();
+                const buffer = new Uint8Array(arrayBuffer);
+                const { error: uploadError } = await supabase.storage.from('media').upload(fileName, buffer, { contentType: file.type });
+                if (!uploadError) {
+                    const { data: publicUrlData } = supabase.storage.from('media').getPublicUrl(fileName);
+                    finalImageUrl = publicUrlData.publicUrl;
+                } else {
+                    isError = true;
+                    pesan = `Gagal unggah gambar baru: ${uploadError.message}`;
+                }
+            }
+        }
+
+        if (!isError && id && title && description && techStack) {
+            const techArray = techStack.split(',').map(s => s.trim());
+            const { error } = await supabase.from('projects').update({ 
+                title, description, tech_stack: techArray, image_url: finalImageUrl 
+            }).eq('id', id);
+
+            if (error) { 
+                isError = true; 
+                pesan = `Gagal memperbarui proyek: ${error.message}`; 
+            } else { 
+                pesan = "Proyek berhasil diperbarui!"; 
+            }
+        }
+    }
+
+    if (action === 'delete_project') {
+        const id = formData.get('id')?.toString();
+        if (id) {
+            const { error } = await supabase.from('projects').delete().eq('id', id);
+            if (error) { isError = true; pesan = error.message; } else { pesan = "Proyek dihapus!"; }
+        }
+    }
+
+    // C. GEAR & STACK
+    if (action === 'add_gear') {
+        const category = formData.get('category')?.toString();
+        const name = formData.get('name')?.toString();
+        const description = formData.get('description')?.toString();
+        if (category && name && description) {
+            const { error } = await supabase.from('hardware_specs').insert([{ category, name, role: description }]);
+            if (error) { isError = true; pesan = error.message; } else { pesan = "Gear ditambahkan!"; }
+        }
+    }
+    if (action === 'delete_gear') {
+        const id = formData.get('id')?.toString();
+        if (id) {
+            const { error } = await supabase.from('hardware_specs').delete().eq('id', id);
+            if (error) { isError = true; pesan = error.message; } else { pesan = "Gear dihapus!"; }
+        }
+    }
+
+    // D. CHANGELOG
+    if (action === 'add_changelog') {
+        const version = formData.get('version')?.toString();
+        const content = formData.get('content')?.toString();
+        if (version && content) {
+            const { error } = await supabase.from('changelogs').insert([{ version, content }]);
+            if (error) { isError = true; pesan = error.message; } else { pesan = "Changelog ditambahkan!"; }
+        }
+    }
+    if (action === 'delete_changelog') {
+        const id = formData.get('id')?.toString();
+        if (id) {
+            const { error } = await supabase.from('changelogs').delete().eq('id', id);
+            if (error) { isError = true; pesan = error.message; } else { pesan = "Changelog dihapus!"; }
+        }
+    }
+
+    // E. MEDIA
+    if (action === 'add_media') {
+        const title = formData.get('title')?.toString();
+        const type = formData.get('type')?.toString();
+        const description = formData.get('description')?.toString();
+        const urlInput = formData.get('url')?.toString();
+        const file = formData.get('file');
+
+        let finalUrl = urlInput || '';
+
+        if (file && file.size > 0) {
+            if (file.size > 2 * 1024 * 1024) {
+                isError = true;
+                pesan = "Gagal: Ukuran file media terlalu besar! Maksimal 2MB.";
+            } else {
+                const fileName = `media-${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
+                const arrayBuffer = await file.arrayBuffer();
+                const buffer = new Uint8Array(arrayBuffer);
+                const { error: uploadError } = await supabase.storage.from('media').upload(fileName, buffer, { contentType: file.type });
+                if (!uploadError) {
+                    const { data: publicUrlData } = supabase.storage.from('media').getPublicUrl(fileName);
+                    finalUrl = publicUrlData.publicUrl;
+                }
+            }
+        }
+        if (!isError && title && type && finalUrl) {
+            const { error } = await supabase.from('media').insert([{ title, type, url: finalUrl, description }]);
+            if (error) { isError = true; pesan = error.message; } else { pesan = "Media ditambahkan!"; }
+        }
+    }
+    if (action === 'delete_media') {
+        const id = formData.get('id')?.toString();
+        if (id) {
+            const { error } = await supabase.from('media').delete().eq('id', id);
+            if (error) { isError = true; pesan = error.message; } else { pesan = "Media dihapus!"; }
+        }
+    }
+
+    // F. GUESTBOOK
+    if (action === 'delete_guestbook') {
+        const id = formData.get('id')?.toString();
+        if (id) {
+            const { error } = await supabase.from('guestbook').delete().eq('id', id);
+            if (error) { isError = true; pesan = error.message; } else { pesan = "Pesan dihapus!"; }
+        }
+    }
+}
+
+// 3. AMBIL DATA DARI SUPABASE
+const { data: currentSettings } = await supabase.from('site_settings').select('*').single();
+const { data: projects } = await supabase.from('projects').select('*').order('created_at', { ascending: false });
+const { data: gearList } = await supabase.from('hardware_specs').select('*').order('created_at', { ascending: false });
+const { data: changelogList } = await supabase.from('changelogs').select('*').order('created_at', { ascending: false });
+const { data: mediaList } = await supabase.from('media').select('*').order('created_at', { ascending: false });
+const { data: guestbookList } = await supabase.from('guestbook').select('*').order('created_at', { ascending: false });
+
+// Ambil data analitik kunjungan
+const { data: analyticsList } = await supabase.from('site_analytics').select('*').order('created_at', { ascending: false }).limit(50);
+const totalVisits = analyticsList ? analyticsList.length : 0;
+---
+
+<Layout title="Dashboard Admin | YOKO.">
+    <style>
+        /* Paksa body halaman admin selalu gelap agar teks selalu terlihat kontras */
+        :global(body) {
+            background-color: #0b0c10 !important;
+            color: #ffffff !important;
+        }
+
+        .admin-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+            margin-top: -20px;
+        }
+        @media (min-width: 768px) {
+            .admin-wrapper { flex-direction: row; align-items: flex-start; }
+        }
+        .admin-sidebar {
+            width: 100%;
+            background-color: #181a20;
+            border: 1px solid #2d313d;
+            border-radius: 8px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+        }
+        @media (min-width: 768px) {
+            .admin-sidebar { width: 280px; position: sticky; top: 100px; flex-shrink: 0; }
+        }
+        .brand-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #ffffff;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #2d313d;
+        }
+        .brand-title span { color: #eab308; }
+        .tab-btn {
+            width: 100%;
+            text-align: left;
+            background: transparent;
+            border: none;
+            border-left: 2px solid transparent;
+            padding: 12px 16px;
+            color: #9ca3af;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-radius: 0 4px 4px 0;
+            margin-bottom: 4px;
+        }
+        .tab-btn:hover { color: #ffffff; }
+        .tab-btn.active {
+            border-left-color: #eab308;
+            background-color: rgba(234, 179, 8, 0.1);
+            color: #eab308;
+            font-weight: bold;
+        }
+        .sidebar-footer {
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid #2d313d;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .link-text {
+            color: #9ca3af;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            transition: color 0.2s;
+        }
+        .link-text:hover { color: #eab308; }
+        .btn-logout {
+            background: none;
+            border: none;
+            color: #ef4444;
+            font-size: 12px;
+            font-weight: bold;
+            font-family: 'JetBrains Mono', monospace;
+            cursor: pointer;
+            text-align: left;
+            padding: 0;
+        }
+        .btn-logout:hover { color: #fca5a5; }
+
+        .admin-main { flex: 1; width: 100%; }
+        .page-header { margin-bottom: 32px; }
+        .page-header h1 { font-size: 28px; font-weight: 800; color: #ffffff; margin-bottom: 8px; }
+        .page-header p { font-size: 14px; color: #9ca3af; }
+
+        .alert-box {
+            padding: 16px;
+            margin-bottom: 24px;
+            font-size: 14px;
+            font-weight: bold;
+            border-left: 4px solid;
+            border-radius: 4px;
+        }
+        .alert-success { background-color: rgba(234, 179, 8, 0.1); border-color: #eab308; color: #eab308; }
+        .alert-error { background-color: rgba(239, 68, 68, 0.1); border-color: #ef4444; color: #f87171; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .card-box {
+            background-color: #181a20;
+            border: 1px solid #2d313d;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 32px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .card-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #eab308;
+            margin-bottom: 24px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #2d313d;
+        }
+        .card-title-white { color: #ffffff; font-size: 18px; font-weight: bold; margin-bottom: 16px; }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        @media (min-width: 640px) { .form-row { grid-template-columns: 1fr 1fr; } }
+        .form-group { margin-bottom: 16px; }
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: bold;
+            color: #9ca3af;
+            margin-bottom: 6px;
+        }
+        input[type="text"], select, textarea {
+            width: 100%;
+            background-color: #21242d;
+            border: 1px solid #2d313d;
+            color: #ffffff;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input[type="text"]:focus, select:focus, textarea:focus { border-color: #eab308; }
+        input[type="file"] {
+            width: 100%;
+            background-color: #21242d;
+            border: 1px solid #2d313d;
+            color: #ffffff;
+            font-size: 12px;
+            padding: 8px;
+            border-radius: 4px;
+        }
+        input[type="file"]::file-selector-button {
+            background-color: #eab308;
+            color: #000000;
+            border: none;
+            padding: 6px 12px;
+            margin-right: 12px;
+            font-weight: bold;
+            border-radius: 2px;
+            cursor: pointer;
+        }
+        .btn-submit {
+            width: 100%;
+            background-color: #eab308;
+            color: #000000;
+            font-weight: bold;
+            padding: 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            margin-top: 8px;
+        }
+        .btn-submit:hover { opacity: 0.9; }
+
+        .list-item {
+            border: 1px solid #2d313d;
+            background-color: #21242d;
+            padding: 16px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .list-badge {
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            background-color: rgba(234, 179, 8, 0.1);
+            color: #eab308;
+            padding: 2px 6px;
+            border-radius: 2px;
+            text-transform: uppercase;
+            margin-right: 8px;
+        }
+        .list-title { font-size: 14px; font-weight: bold; color: #ffffff; margin-bottom: 4px; }
+        .list-desc { font-size: 12px; color: #9ca3af; }
+        .btn-edit { background-color: #3b82f6; color: #ffffff; padding: 8px 16px; border: none; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; }
+        .btn-delete { background-color: #ef4444; color: #ffffff; padding: 6px 12px; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; }
+
+        .profile-box {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            padding: 16px;
+            border: 1px solid #2d313d;
+            background-color: #21242d;
+            border-radius: 6px;
+            margin-bottom: 24px;
+        }
+        @media (min-width: 640px) { .profile-box { flex-direction: row; align-items: center; } }
+        .profile-avatar {
+            width: 80px; height: 80px;
+            border-radius: 50%;
+            border: 2px solid #4b5563;
+            background-color: #000;
+            overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    </style>
+
+    <div class="admin-wrapper">
+        
+        <aside class="admin-sidebar">
+            <div class="brand-title">CMS<span>.</span>DASHBOARD</div>
+            <nav>
+                <button onclick="window.switchTab('settings')" id="btn-settings" class="tab-btn active">⚙️ Pengaturan Website</button>
+                <button onclick="window.switchTab('projects')" id="btn-projects" class="tab-btn">📁 Kelola Proyek</button>
+                <button onclick="window.switchTab('gear')" id="btn-gear" class="tab-btn">💻 Gear & Stack</button>
+                <button onclick="window.switchTab('changelog')" id="btn-changelog" class="tab-btn">⚡ Changelog</button>
+                <button onclick="window.switchTab('media')" id="btn-media" class="tab-btn">🖼️ Arsip Media</button>
+                <button onclick="window.switchTab('guestbook')" id="btn-guestbook" class="tab-btn">📖 Buku Tamu</button>
+                <button onclick="window.switchTab('analytics')" id="btn-analytics" class="tab-btn">📈 Analitik & Pengunjung</button>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="/" target="_blank" class="link-text">↗ Lihat Website Utama</a>
+                <form method="POST">
+                    <input type="hidden" name="logout" value="true" />
+                    <button type="submit" class="btn-logout">🚪 KELUAR (LOGOUT)</button>
+                </form>
+            </div>
+        </aside>
+
+        <main class="admin-main">
+            <div class="page-header">
+                <h1>Panel Kontrol Admin</h1>
+                <p>Kelola seluruh komponen portofolio secara modular & terfokus.</p>
+            </div>
+
+            {pesan && (
+                <div class={`alert-box ${isError ? 'alert-error' : 'alert-success'}`}>
+                    {pesan}
+                </div>
+            )}
+
+            <!-- TAB 1: PENGATURAN -->
+            <div id="tab-settings" class="tab-content active">
+                <div class="card-box">
+                    <h2 class="card-title">⚙️ Pengaturan Website & Profil</h2>
+                    <form method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="action" value="update_settings" />
+                        <input type="hidden" name="oldProfileImage" value={currentSettings?.profile_image || ''} />
+
+                        <div class="profile-box">
+                            <div class="profile-avatar">
+                                {currentSettings?.profile_image ? (
+                                    <img src={currentSettings.profile_image} alt="Profile" />
+                                ) : (
+                                    <span style="font-size: 10px; color: #6b7280;">No Photo</span>
+                                )}
+                            </div>
+                            <div style="flex: 1;">
+                                <label>Ganti Foto Profil (Maks 2MB)</label>
+                                <input type="file" name="profileFile" accept="image/*" />
+                            </div>
+                        </div>
+
+                        <!-- MAINTENANCE MODE TOGGLE -->
+                        <div class="form-group" style="display: flex; align-items: center; gap: 12px; background: #21242d; padding: 14px; border: 1px solid #2d313d; border-radius: 4px; margin-bottom: 20px;">
+                            <input type="checkbox" id="isMaintenance" name="isMaintenance" checked={currentSettings?.is_maintenance} style="width: 20px; height: 20px; cursor: pointer; accent-color: #eab308;" />
+                            <label for="isMaintenance" style="margin: 0; color: #ffffff; cursor: pointer; font-size: 13px;">
+                                Aktifkan Mode Pemeliharaan <span style="color: #9ca3af; font-weight: normal; display: block; font-size: 11px;">(Mengalihkan pengunjung publik ke halaman maintenance)</span>
+                            </label>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Judul Tab Browser (Title)</label>
+                                <input type="text" name="siteTitle" value={currentSettings?.site_title || ''} required />
+                            </div>
+                            <div class="form-group">
+                                <label>Label Badge Hero Atas</label>
+                                <input type="text" name="heroBadge" value={currentSettings?.hero_badge || ''} required />
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Judul Utama Hero (Heading)</label>
+                            <input type="text" name="heroTitle" value={currentSettings?.hero_title || ''} required />
+                        </div>
+                        <div class="form-group">
+                            <label>Deskripsi Singkat Hero</label>
+                            <textarea name="heroDescription" rows="3" required>{currentSettings?.hero_description || ''}</textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Warna Aksen Utama (HEX Code)</label>
+                            <input type="text" name="neonColor" value={currentSettings?.neon_color || '#eab308'} required style="font-family: monospace;" />
+                        </div>
+                        <button type="submit" class="btn-submit">Simpan Perubahan Pengaturan</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- TAB 2: PROYEK -->
+            <div id="tab-projects" class="tab-content">
+                <div class="card-box">
+                    <h2 class="card-title">＋ Tambah Proyek Baru</h2>
+                    <form method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="action" value="add_project" />
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Nama Proyek</label>
+                                <input type="text" name="title" required />
+                            </div>
+                            <div class="form-group">
+                                <label>Upload Gambar Proyek (Maks 2MB)</label>
+                                <input type="file" name="file" accept="image/*" />
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Deskripsi / Dokumentasi Sistem <span style="color: #6b7280; font-weight: normal;">(Mendukung Markdown: ## Judul, **Tebal**, `code`, - Poin)</span></label>
+                            <textarea name="description" rows="4" required placeholder="Tulis dokumentasi dalam format Markdown..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Tech Stack (Pisahkan dengan koma)</label>
+                            <input type="text" name="techStack" required placeholder="Python, Celery, Redis" />
+                        </div>
+                        <button type="submit" class="btn-submit">Simpan Proyek Baru</button>
+                    </form>
+                </div>
+
+                <h3 class="card-title-white">Daftar Proyek Tersimpan</h3>
+                {projects && projects.length > 0 ? projects.map(proj => (
+                    <div class="list-item">
+                        <form method="POST" enctype="multipart/form-data">
+                            <input type="hidden" name="action" value="edit_project" />
+                            <input type="hidden" name="id" value={proj.id} />
+                            <input type="hidden" name="oldUrl" value={proj.image_url || ''} />
+                            
+                            <div class="form-row">
+                                <div class="form-group"><label>Judul</label><input type="text" name="title" value={proj.title} required /></div>
+                                <div class="form-group"><label>Tech Stack</label><input type="text" name="techStack" value={Array.isArray(proj.tech_stack) ? proj.tech_stack.join(', ') : proj.tech_stack} required /></div>
+                            </div>
+                            <div class="form-group"><label>Ganti Gambar (Opsional, Maks 2MB)</label><input type="file" name="file" accept="image/*" /></div>
+                            <div class="form-group"><label>Deskripsi (Markdown)</label><textarea name="description" rows="3" required>{proj.description}</textarea></div>
+                            <div style="display: flex; justify-content: flex-end;"><button type="submit" class="btn-edit">Perbarui Proyek</button></div>
+                        </form>
+                        <form method="POST" onsubmit="return confirm('Hapus proyek ini?');" style="border-top: 1px solid #2d313d; padding-top: 12px; display: flex; justify-content: flex-end;">
+                            <input type="hidden" name="action" value="delete_project" />
+                            <input type="hidden" name="id" value={proj.id} />
+                            <button type="submit" class="btn-delete">Hapus Proyek</button>
+                        </form>
+                    </div>
+                )) : <p style="color: #6b7280; font-size: 14px;">Belum ada proyek.</p>}
+            </div>
+
+            <!-- TAB 3: GEAR -->
+            <div id="tab-gear" class="tab-content">
+                <div class="card-box">
+                    <h2 class="card-title">💻 Tambah Gear & Workstation</h2>
+                    <form method="POST">
+                        <input type="hidden" name="action" value="add_gear" />
+                        <div class="form-row">
+                            <div class="form-group"><label>Kategori</label><input type="text" name="category" required /></div>
+                            <div class="form-group"><label>Nama Perangkat</label><input type="text" name="name" required /></div>
+                        </div>
+                        <div class="form-group"><label>Deskripsi / Peran</label><textarea name="description" rows="2" required></textarea></div>
+                        <button type="submit" class="btn-submit">Simpan Gear Baru</button>
+                    </form>
+                </div>
+                <h3 class="card-title-white">Daftar Gear Tersimpan</h3>
+                {gearList && gearList.length > 0 ? gearList.map(gear => (
+                    <div class="list-item" style="flex-direction: row; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span class="list-badge">{gear.category}</span>
+                            <div class="list-title">{gear.name}</div>
+                            <div class="list-desc">{gear.role}</div>
+                        </div>
+                        <form method="POST" onsubmit="return confirm('Hapus gear?');">
+                            <input type="hidden" name="action" value="delete_gear" />
+                            <input type="hidden" name="id" value={gear.id} />
+                            <button type="submit" class="btn-delete">Hapus</button>
+                        </form>
+                    </div>
+                )) : <p style="color: #6b7280; font-size: 14px;">Belum ada gear.</p>}
+            </div>
+
+            <!-- TAB 4: CHANGELOG -->
+            <div id="tab-changelog" class="tab-content">
+                <div class="card-box">
+                    <h2 class="card-title">⚡ Tambah Changelog</h2>
+                    <form method="POST">
+                        <input type="hidden" name="action" value="add_changelog" />
+                        <div class="form-group"><label>Versi / Tag</label><input type="text" name="version" required placeholder="v1.0.0" /></div>
+                        <div class="form-group"><label>Isi Pembaruan</label><textarea name="content" rows="3" required></textarea></div>
+                        <button type="submit" class="btn-submit">Simpan Changelog</button>
+                    </form>
+                </div>
+                <h3 class="card-title-white">Riwayat Changelog</h3>
+                {changelogList && changelogList.length > 0 ? changelogList.map(log => (
+                    <div class="list-item" style="flex-direction: row; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span class="list-badge">{log.version}</span>
+                            <div class="list-desc" style="margin-top: 4px; color: #d1d5db;">{log.content}</div>
+                        </div>
+                        <form method="POST" onsubmit="return confirm('Hapus changelog?');">
+                            <input type="hidden" name="action" value="delete_changelog" />
+                            <input type="hidden" name="id" value={log.id} />
+                            <button type="submit" class="btn-delete">Hapus</button>
+                        </form>
+                    </div>
+                )) : <p style="color: #6b7280; font-size: 14px;">Belum ada changelog.</p>}
+            </div>
+
+            <!-- TAB 5: MEDIA -->
+            <div id="tab-media" class="tab-content">
+                <div class="card-box">
+                    <h2 class="card-title">🖼️ Tambah Media</h2>
+                    <form method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="action" value="add_media" />
+                        <div class="form-row">
+                            <div class="form-group"><label>Judul Media</label><input type="text" name="title" required /></div>
+                            <div class="form-group">
+                                <label>Tipe</label>
+                                <select name="type">
+                                    <option value="photo">Foto</option>
+                                    <option value="video">Video</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group"><label>Upload File (Maks 2MB)</label><input type="file" name="file" accept="image/*" /></div>
+                            <div class="form-group"><label>Atau URL</label><input type="text" name="url" /></div>
+                        </div>
+                        <button type="submit" class="btn-submit">Simpan Media</button>
+                    </form>
+                </div>
+                <h3 class="card-title-white">Daftar Media</h3>
+                {mediaList && mediaList.length > 0 ? mediaList.map(med => (
+                    <div class="list-item" style="flex-direction: row; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div class="list-title">{med.title}</div>
+                            <div class="list-desc">{med.url}</div>
+                        </div>
+                        <form method="POST" onsubmit="return confirm('Hapus media?');">
+                            <input type="hidden" name="action" value="delete_media" />
+                            <input type="hidden" name="id" value={med.id} />
+                            <button type="submit" class="btn-delete">Hapus</button>
+                        </form>
+                    </div>
+                )) : <p style="color: #6b7280; font-size: 14px;">Belum ada media.</p>}
+            </div>
+
+            <!-- TAB 6: GUESTBOOK -->
+            <div id="tab-guestbook" class="tab-content">
+                <h3 class="card-title-white">📖 Kelola Buku Tamu</h3>
+                {guestbookList && guestbookList.length > 0 ? guestbookList.map(entry => (
+                    <div class="list-item" style="flex-direction: row; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div class="list-title">{entry.name}</div>
+                            <div class="list-desc" style="color: #d1d5db;">{entry.message}</div>
+                        </div>
+                        <form method="POST" onsubmit="return confirm('Hapus pesan ini?');">
+                            <input type="hidden" name="action" value="delete_guestbook" />
+                            <input type="hidden" name="id" value={entry.id} />
+                            <button type="submit" class="btn-delete">Hapus</button>
+                        </form>
+                    </div>
+                )) : <p style="color: #6b7280; font-size: 14px;">Belum ada pesan.</p>}
+            </div>
+
+            <!-- TAB 7: ANALITIK KUNJUNGAN -->
+            <div id="tab-analytics" class="tab-content">
+                <div class="card-box">
+                    <h2 class="card-title">📈 Statistik & Pelacakan Pengunjung</h2>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px;">
+                        <div style="background: #21242d; padding: 20px; border-radius: 6px; border: 1px solid #2d313d;">
+                            <span style="font-size: 11px; font-family: 'JetBrains Mono', monospace; color: #9ca3af; text-transform: uppercase;">Total Kunjungan Tercatat</span>
+                            <div style="font-size: 32px; font-weight: 800; color: #eab308; margin-top: 4px;">{totalVisits}</div>
+                        </div>
+                        <div style="background: #21242d; padding: 20px; border-radius: 6px; border: 1px solid #2d313d;">
+                            <span style="font-size: 11px; font-family: 'JetBrains Mono', monospace; color: #9ca3af; text-transform: uppercase;">Status Pelacakan</span>
+                            <div style="font-size: 14px; font-weight: bold; color: #10b981; margin-top: 8px;">● Aktif & Real-time</div>
+                        </div>
+                    </div>
+
+                    <h3 class="card-title-white" style="font-size: 14px; margin-bottom: 12px;">Log Aktivitas Kunjungan Terbaru</h3>
+                    <div style="display: flex; flex-direction: column; gap: 8px; max-height: 350px; overflow-y: auto;">
+                        {analyticsList && analyticsList.length > 0 ? (
+                            analyticsList.map((log) => (
+                                <div style="background: #0b0c10; border: 1px solid #2d313d; padding: 12px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+                                    <div>
+                                        <span style="color: #eab308; font-family: 'JetBrains Mono', monospace; font-weight: bold; margin-right: 8px;">[{log.page}]</span>
+                                        <span style="color: #9ca3af; word-break: break-all;">{log.user_agent}</span>
+                                    </div>
+                                    <span style="font-family: 'JetBrains Mono', monospace; color: #9ca3af; white-space: nowrap; margin-left: 12px;">
+                                        {new Date(log.created_at).toLocaleTimeString('id-ID')}
+                                    </span>
+                                </div>
+                            ))
+                        ) : (
+                            <p style="font-size: 12px; font-family: monospace; color: #9ca3af;">Belum ada data kunjungan terekam.</p>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Skrip Interaktif Khusus Halaman Admin -->
+    <script is:inline>
+        document.addEventListener('astro:page-load', () => {
+            // Paksa tema dokumen menjadi dark saat di halaman admin
+            document.documentElement.setAttribute('data-theme', 'dark');
+
+            // Daftarkan fungsi switchTab ke global window agar bisa dipanggil dari inline HTML
+            window.switchTab = function(tabName) {
+                document.querySelectorAll('.tab-content').forEach(el => {
+                    el.classList.remove('active');
+                });
+                document.querySelectorAll('.tab-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                
+                const targetTab = document.getElementById('tab-' + tabName);
+                if (targetTab) targetTab.classList.add('active');
+                
+                const activeBtn = document.getElementById('btn-' + tabName);
+                if (activeBtn) activeBtn.classList.add('active');
+                
+                localStorage.setItem('active_admin_tab', tabName);
+            };
+
+            // Inisialisasi tab aktif saat dimuat
+            const savedTab = localStorage.getItem('active_admin_tab') || 'settings';
+            
+            // Pastikan tab yang tersimpan benar-benar ada di DOM sebelum diswitch
+            if (document.getElementById('tab-' + savedTab)) {
+                window.switchTab(savedTab);
+            }
+        });
+    </script>
+</Layout>

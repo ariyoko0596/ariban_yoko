@@ -1,0 +1,31 @@
+---
+// src/components/ProjectCard.astro
+interface Props {
+    title: string;
+    description: string;
+    techStack: string[];
+}
+
+const { title, description, techStack } = Astro.props;
+---
+
+<div class="border-2 border-card-bg bg-card-bg/20 p-8 flex flex-col h-full hover:-translate-y-2 hover:shadow-[6px_6px_0px_0px_var(--color-neon-accent)] hover:border-neon-accent transition-all duration-300 group">
+    <!-- Judul Proyek -->
+    <h3 class="text-2xl font-heading font-bold text-text-main mb-4 group-hover:text-neon-accent transition-colors">
+        {title}
+    </h3>
+    
+    <!-- Deskripsi -->
+    <p class="text-gray-400 mb-8 flex-grow leading-relaxed">
+        {description}
+    </p>
+    
+    <!-- Tech Stack (Tags) -->
+    <div class="flex flex-wrap gap-2 mt-auto">
+        {techStack.map((tech) => (
+            <span class="px-3 py-1 bg-bg-primary border border-gray-700 text-xs font-bold text-gray-300 uppercase tracking-widest">
+                {tech}
+            </span>
+        ))}
+    </div>
+</div>

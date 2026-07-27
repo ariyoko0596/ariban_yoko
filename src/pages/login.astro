@@ -1,0 +1,155 @@
+---
+// src/pages/login.astro
+export const prerender = false;
+
+import Layout from '../layouts/Layout.astro';
+import { supabase } from '../lib/supabase.js';
+
+let errorMessage = '';
+
+if (Astro.request.method === 'POST') {
+    try {
+        const formData = await Astro.request.formData();
+        const email = formData.get('email')?.toString();
+        const password = formData.get('password')?.toString();
+
+        if (email && password) {
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            });
+
+            if (error) {
+                errorMessage = error.message;
+            } else if (data?.session) {
+                Astro.cookies.set('sb-access-token', data.session.access_token, {
+                    path: '/',
+                    secure: false,
+                    httpOnly: true,
+                    sameSite: 'lax',
+                });
+                Astro.cookies.set('sb-refresh-token', data.session.refresh_token, {
+                    path: '/',
+                    secure: false,
+                    httpOnly: true,
+                    sameSite: 'lax',
+                });
+
+                return Astro.redirect('/admin');
+            }
+        } else {
+            errorMessage = 'Email dan password wajib diisi.';
+        }
+    } catch (err) {
+        errorMessage = 'Terjadi kesalahan sistem saat mencoba masuk.';
+    }
+}
+---
+
+<Layout title="Login — Akses Komando">
+    <div class="login-container reveal">
+        <h1>Akses Komando</h1>
+        <p>Masuk untuk menambah dan mengelola portofolio sistem Anda.</p>
+        
+        {errorMessage && (
+            <div class="error-box">
+                {errorMessage}
+            </div>
+        )}
+
+        <form method="POST" class="login-form">
+            <div class="input-group">
+                <input type="email" name="email" placeholder="email@domain.com" required />
+            </div>
+            <div class="input-group">
+                <input type="password" name="password" placeholder="••••••••••••" required />
+            </div>
+            <button type="submit" class="btn-login">LOGIN</button>
+        </form>
+
+        <a href="/" class="back-link">← Kembali ke Beranda</a>
+    </div>
+
+    <style>
+        .login-container {
+            max-width: 420px;
+            margin: 60px auto;
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        }
+        .login-container h1 {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-main);
+            margin-bottom: 8px;
+        }
+        .login-container p {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+        .error-box {
+            background-color: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            color: #f87171;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 20px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .input-group input {
+            width: 100%;
+            background-color: var(--bg-service);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 14px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-group input:focus {
+            border-color: var(--accent-color);
+        }
+        .btn-login {
+            width: 100%;
+            background-color: var(--accent-color);
+            color: var(--bg-main);
+            font-weight: bold;
+            font-size: 14px;
+            padding: 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 8px;
+            transition: opacity 0.2s;
+        }
+        .btn-login:hover {
+            opacity: 0.9;
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 24px;
+            font-size: 13px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-muted);
+            transition: color 0.2s;
+        }
+        .back-link:hover {
+            color: var(--accent-color);
+        }
+    </style>
+</Layout>

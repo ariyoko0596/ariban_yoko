@@ -1,0 +1,266 @@
+---
+// src/pages/guestbook.astro
+export const prerender = false;
+
+import Layout from '../layouts/Layout.astro';
+import { supabase } from '../lib/supabase.js';
+
+let pesanStatus = '';
+let isError = false;
+
+if (Astro.request.method === 'POST') {
+    const formData = await Astro.request.formData();
+    const name = formData.get('name')?.toString().trim();
+    const message = formData.get('message')?.toString().trim();
+
+    // Rate Limiting Sederhana berdasarkan Cookies
+    const lastPostTime = Astro.cookies.get('last_guestbook_post')?.number();
+    const now = Date.now();
+
+    if (lastPostTime && now - lastPostTime < 30000) { // Jeda 30 detik
+        isError = true;
+        pesanStatus = "Harap tunggu 30 detik sebelum mengirim pesan berikutnya (Anti-Spam).";
+    } else if (name && message) {
+        const { error } = await supabase.from('guestbook').insert([{ name, message }]);
+        if (error) {
+            isError = true;
+            pesanStatus = `Gagal mengirim pesan: ${error.message}`;
+        } else {
+            pesanStatus = "Terima kasih! Pesan Anda berhasil dikirim ke buku tamu.";
+            Astro.cookies.set('last_guestbook_post', now.toString(), { path: '/', maxAge: 60 });
+        }
+    } else {
+        isError = true;
+        pesanStatus = "Nama dan pesan wajib diisi.";
+    }
+}
+
+const { data: guestbookEntries } = await supabase
+    .from('guestbook')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+const { data: settings } = await supabase.from('site_settings').select('*').single();
+const siteTitle = settings?.site_title || 'Guestbook | YOKO.';
+---
+
+<Layout title={`Guestbook | ${siteTitle}`}>
+    <style>
+        .guestbook-wrapper {
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 36px;
+            padding: 20px 0 60px 0;
+        }
+        .back-link {
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-color);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: bold;
+        }
+        .back-link:hover { text-decoration: underline; }
+        .guestbook-header {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .header-tag {
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-color);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+        .guestbook-header h1 {
+            font-size: 36px;
+            font-weight: 800;
+            color: var(--text-main);
+            letter-spacing: -0.5px;
+        }
+        .guestbook-header p {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+        .alert-box {
+            padding: 16px;
+            font-size: 13px;
+            font-weight: bold;
+            border-left: 4px solid;
+            border-radius: 4px;
+        }
+        .alert-success { background-color: rgba(234, 179, 8, 0.1); border-color: var(--accent-color); color: var(--accent-color); }
+        .alert-error { background-color: rgba(239, 68, 68, 0.1); border-color: #ef4444; color: #f87171; }
+        .form-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            padding: 36px;
+            border-radius: 8px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .form-card h2 {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--text-main);
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .form-group label {
+            font-size: 12px;
+            font-weight: bold;
+            color: var(--text-muted);
+        }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            background-color: var(--bg-service);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 12px 16px;
+            border-radius: 4px;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus, .form-group textarea:focus {
+            border-color: var(--accent-color);
+        }
+        .btn-submit {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: var(--accent-color);
+            color: var(--bg-main);
+            font-weight: bold;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            width: fit-content;
+        }
+        .btn-submit:hover { opacity: 0.9; }
+        .entries-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .entries-section h2 {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--text-main);
+            margin-bottom: 4px;
+        }
+        .entry-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            padding: 24px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transition: border-color 0.2s;
+        }
+        .entry-card:hover {
+            border-color: rgba(234, 179, 8, 0.4);
+        }
+        .entry-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .entry-name {
+            font-size: 15px;
+            font-weight: bold;
+            color: var(--text-main);
+        }
+        .entry-date {
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-muted);
+        }
+        .entry-message {
+            font-size: 14px;
+            color: var(--text-muted);
+            line-height: 1.6;
+            white-space: pre-line;
+            font-family: 'Inter', sans-serif;
+        }
+        .empty-box {
+            padding: 30px;
+            text-align: center;
+            border: 1px dashed var(--border-color);
+            border-radius: 8px;
+            color: var(--text-muted);
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+    </style>
+
+    <div class="guestbook-wrapper">
+        <div class="reveal">
+            <a href="/" class="back-link">← KEMBALI KE BERANDA</a>
+        </div>
+
+        <div class="guestbook-header reveal">
+            <span class="header-tag">INTERACTION</span>
+            <h1>Visitor Guestbook</h1>
+            <p>Tinggalkan jejak, pesan, atau kesan Anda setelah mengunjungi portofolio ini.</p>
+        </div>
+
+        {pesanStatus && (
+            <div class={`alert-box reveal ${isError ? 'alert-error' : 'alert-success'}`}>
+                {pesanStatus}
+            </div>
+        )}
+
+        <div class="form-card reveal">
+            <h2>Tulis Pesan Baru</h2>
+            <form method="POST" class="form-group" style="gap: 16px;">
+                <div class="form-group">
+                    <label>Nama Anda / Panggilan</label>
+                    <input type="text" name="name" required placeholder="Contoh: Alex Turner" />
+                </div>
+                <div class="form-group">
+                    <label>Pesan / Kesan</label>
+                    <textarea name="message" rows="4" required placeholder="Tuliskan pesan Anda di sini..."></textarea>
+                </div>
+                <button type="submit" class="btn-submit">KIRIM PESAN</button>
+            </form>
+        </div>
+
+        <div class="entries-section reveal">
+            <h2>Pesan Pengunjung Sebelumnya</h2>
+            {guestbookEntries && guestbookEntries.length > 0 ? (
+                guestbookEntries.map((entry) => (
+                    <div class="entry-card">
+                        <div class="entry-header">
+                            <span class="entry-name">{entry.name}</span>
+                            <span class="entry-date">
+                                {new Date(entry.created_at).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' })}
+                            </span>
+                        </div>
+                        <p class="entry-message">{entry.message}</p>
+                    </div>
+                ))
+            ) : (
+                <div class="empty-box">Belum ada pesan di buku tamu. Jadilah yang pertama menulis pesan!</div>
+            )}
+        </div>
+    </div>
+</Layout>

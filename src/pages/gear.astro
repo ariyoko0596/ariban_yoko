@@ -1,0 +1,154 @@
+---
+// src/pages/gear.astro
+export const prerender = false;
+
+import Layout from '../layouts/Layout.astro';
+import { supabase } from '../lib/supabase.js';
+
+const { data: gears } = await supabase
+    .from('hardware_specs')
+    .select('*')
+    .order('created_at', { ascending: true });
+
+const { data: settings } = await supabase.from('site_settings').select('*').single();
+const siteTitle = settings?.site_title || 'Gear & Stack | YOKO.';
+---
+
+<Layout title={`Gear & Workstation Stack | ${siteTitle}`}>
+    <style>
+        .gear-wrapper {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+            padding: 20px 0 60px 0;
+        }
+
+        .back-link {
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-color);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+        .back-link:hover { opacity: 0.8; text-decoration: underline; }
+
+        .gear-header {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .header-tag {
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-color);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+        .gear-header h1 {
+            font-size: 36px;
+            font-weight: 800;
+            color: var(--text-main);
+            letter-spacing: -0.5px;
+        }
+        .gear-header p {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .gear-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 24px;
+        }
+        @media (min-width: 768px) {
+            .gear-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        .gear-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            padding: 28px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            transition: border-color 0.2s, transform 0.2s;
+        }
+        .gear-card:hover {
+            border-color: var(--accent-color);
+            transform: translateY(-2px);
+        }
+        .gear-category {
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-color);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: bold;
+        }
+        .gear-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--text-main);
+        }
+        .gear-desc {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.6;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .empty-box {
+            grid-column: span 2;
+            padding: 40px;
+            text-align: center;
+            border: 1px dashed var(--border-color);
+            border-radius: 8px;
+            color: var(--text-muted);
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        @media (max-width: 640px) {
+            .gear-header h1 { font-size: 28px; }
+        }
+    </style>
+
+    <div class="gear-wrapper">
+        <div class="reveal">
+            <a href="/" class="back-link">
+                ← KEMBALI KE BERANDA
+            </a>
+        </div>
+
+        <div class="gear-header reveal">
+            <span class="header-tag">WORKSTATION & SETUP</span>
+            <h1>Gear & Stack Specification</h1>
+            <p>Daftar perangkat keras, perangkat lunak, dan pustaka teknologi yang saya gunakan sehari-hari untuk pengembangan backend dan live streaming.</p>
+        </div>
+
+        <div class="gear-grid reveal">
+            {gears && gears.length > 0 ? (
+                gears.map((item) => (
+                    <div class="gear-card">
+                        <span class="gear-category">{item.category}</span>
+                        <h3 class="gear-name">{item.name}</h3>
+                        <p class="gear-desc">{item.role}</p>
+                    </div>
+                ))
+            ) : (
+                <div class="empty-box">
+                    Belum ada spesifikasi gear yang ditambahkan melalui panel admin.
+                </div>
+            )}
+        </div>
+    </div>
+</Layout>

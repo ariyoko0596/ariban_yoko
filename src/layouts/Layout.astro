@@ -1,0 +1,187 @@
+---
+// src/layouts/Layout.astro
+import { ClientRouter } from 'astro:transitions';
+import { supabase } from '../lib/supabase.js';
+import Navbar from '../components/Navbar.astro';
+import Footer from '../components/Footer.astro';
+import AiAssistant from '../components/AiAssistant.astro';
+
+// Ambil pengaturan situs dari Supabase untuk warna aksen dinamis
+const { data: settings } = await supabase.from('site_settings').select('*').single();
+const accentColor = settings?.neon_color || '#eab308'; 
+const siteTitle = settings?.site_title || 'Ariban Yoko — Backend Engineer & Streamer';
+const defaultDesc = settings?.hero_description || 'Portfolio & Tech Architecture Ariban Yoko';
+
+interface Props {
+    title?: string;
+    description?: string;
+    image?: string;
+}
+
+const { title = siteTitle, description = defaultDesc, image = '/default-og.png' } = Astro.props;
+
+// Skema JSON-LD untuk SEO Profil Profesional
+const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "name": "Ariban Yoko",
+    "jobTitle": "Backend Engineer & Live Streamer",
+    "url": "https://aribanyoko.com",
+    "sameAs": [
+        "https://linkedin.com",
+        "https://github.com"
+    ],
+    "knowsAbout": ["Python", "Celery", "Redis", "Astro", "Backend Architecture"]
+};
+---
+
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" style={`--accent-color: ${accentColor};`}>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    
+    <!-- SEO & Open Graph -->
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={image} />
+    <meta property="og:type" content="website" />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <ClientRouter />
+    
+    <style is:global>
+        :root {
+            --transition-speed: 0.3s;
+        }
+
+        [data-theme="dark"] {
+            --bg-main: #0b0c10; 
+            --bg-card: #181a20;
+            --bg-service: #21242d;
+            --border-color: #2d313d;
+            --text-main: #ffffff;
+            --text-muted: #9ca3af;
+        }
+
+        [data-theme="light"] {
+            --bg-main: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-service: #f1f5f9;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            transition: background-color var(--transition-speed) ease, color var(--transition-speed) ease;
+            overflow-x: hidden;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        main { flex: 1; width: 100%; }
+
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.6s cubic-bezier(0.5, 0, 0, 1);
+        }
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Styling Tombol Salin Kode Otomatis */
+        .code-block-wrapper {
+            position: relative;
+        }
+        .copy-code-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: var(--bg-service);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .copy-code-btn:hover {
+            background: var(--accent-color);
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+    <Navbar />
+
+    <main style="max-width: 1050px; margin: 0 auto; padding: 140px 20px 40px 20px;">
+        <slot />
+    </main>
+
+    <Footer />
+
+    <!-- WIDGET AI ASSISTANT GLOBAL -->
+    <AiAssistant />
+
+    <script is:inline>
+        document.addEventListener('astro:page-load', () => {
+            const htmlElement = document.documentElement;
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            htmlElement.setAttribute('data-theme', savedTheme);
+
+            // Logika Scroll Reveal
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('active');
+                    }
+                });
+            }, { threshold: 0.1 });
+
+            document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+            // Logika Tombol Salin Kode Otomatis untuk elemen <pre>
+            document.querySelectorAll('pre').forEach((block) => {
+                if (block.parentElement.classList.contains('code-block-wrapper')) return;
+                
+                const wrapper = document.createElement('div');
+                wrapper.className = 'code-block-wrapper';
+                block.parentNode.insertBefore(wrapper, block);
+                wrapper.appendChild(block);
+
+                const button = document.createElement('button');
+                button.className = 'copy-code-btn';
+                button.textContent = 'Copy';
+                
+                button.addEventListener('click', async () => {
+                    const code = block.querySelector('code') ? block.querySelector('code').innerText : block.innerText;
+                    await navigator.clipboard.writeText(code);
+                    button.textContent = 'Copied!';
+                    setTimeout(() => { button.textContent = 'Copy'; }, 2000);
+                });
+
+                wrapper.appendChild(button);
+            });
+        });
+    </script>
+</body>
+</html>

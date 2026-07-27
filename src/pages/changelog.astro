@@ -1,0 +1,144 @@
+---
+// src/pages/changelog.astro
+export const prerender = false;
+
+import Layout from '../layouts/Layout.astro';
+import { supabase } from '../lib/supabase.js';
+
+// Optimasi Kueri: Batasi maksimal 15 changelog terbaru
+const { data: changelogs } = await supabase
+    .from('changelogs')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(15);
+
+const { data: settings } = await supabase.from('site_settings').select('*').single();
+const siteTitle = settings?.site_title || 'Changelog | YOKO.';
+---
+
+<Layout title={`Changelog & Updates | ${siteTitle}`}>
+    <style>
+        .changelog-wrapper {
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+            padding: 20px 0 60px 0;
+        }
+        .back-link {
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            color: #eab308;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .back-link:hover { text-decoration: underline; }
+        .changelog-header {
+            border-bottom: 1px solid #2d313d;
+            padding-bottom: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .header-tag {
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            color: #eab308;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+        .changelog-header h1 {
+            font-size: 36px;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: -0.5px;
+        }
+        .changelog-header p {
+            font-size: 14px;
+            color: #9ca3af;
+        }
+        .changelog-list {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        .log-card {
+            background-color: #181a20;
+            border: 1px solid #2d313d;
+            padding: 32px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            transition: border-color 0.2s;
+        }
+        .log-card:hover { border-color: rgba(234, 179, 8, 0.4); }
+        .log-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .version-badge {
+            font-size: 12px;
+            padding: 4px 10px;
+            background-color: rgba(234, 179, 8, 0.1);
+            color: #eab308;
+            font-family: 'JetBrains Mono', monospace;
+            border-radius: 4px;
+            border: 1px solid rgba(234, 179, 8, 0.2);
+            font-weight: bold;
+        }
+        .log-date {
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            color: #6b7280;
+        }
+        .log-content {
+            font-size: 14px;
+            color: #d1d5db;
+            line-height: 1.7;
+            white-space: pre-line;
+            font-family: 'Inter', sans-serif;
+        }
+        .empty-box {
+            padding: 40px;
+            text-align: center;
+            border: 1px dashed #2d313d;
+            border-radius: 8px;
+            color: #6b7280;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+    </style>
+
+    <div class="changelog-wrapper">
+        <div><a href="/" class="back-link">← KEMBALI KE BERANDA</a></div>
+        <div class="changelog-header">
+            <span class="header-tag">VERSION HISTORY</span>
+            <h1>System Changelog & Updates</h1>
+            <p>Catatan pembaruan, peningkatan performa backend, dan riwayat rilis sistem secara berkala.</p>
+        </div>
+        <div class="changelog-list">
+            {changelogs && changelogs.length > 0 ? (
+                changelogs.map((log) => (
+                    <div class="log-card">
+                        <div class="log-card-header">
+                            <span class="version-badge">{log.version}</span>
+                            <span class="log-date">
+                                {new Date(log.created_at).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}
+                            </span>
+                        </div>
+                        <p class="log-content">{log.content}</p>
+                    </div>
+                ))
+            ) : (
+                <div class="empty-box">Belum ada catatan changelog yang dipublikasikan.</div>
+            )}
+        </div>
+    </div>
+</Layout>

@@ -1,0 +1,132 @@
+---
+// src/components/AiAssistant.astro
+---
+<div class="ai-chat-widget">
+    <button id="chatToggleBtn" class="chat-toggle-btn" type="button" aria-label="Buka Asisten AI">
+        <span>💬 AI Assistant</span>
+    </button>
+
+    <div id="chatWindow" class="chat-window hidden">
+        <div class="chat-header">
+            <div class="chat-title">
+                <span class="status-dot"></span>
+                <strong>Yoko AI Assistant</strong>
+            </div>
+            <button id="chatCloseBtn" class="chat-close-btn" type="button">&times;</button>
+        </div>
+        
+        <div id="chatBody" class="chat-body">
+            <div class="chat-message bot">
+                Halo! Saya asisten virtual Ariban Yoko. Ada yang ingin Anda tanyakan seputar backend stack, proyek, atau kolaborasi?
+            </div>
+        </div>
+
+        <form id="chatForm" class="chat-footer">
+            <input type="text" id="chatInput" placeholder="Ketik pertanyaan..." autocomplete="off" required />
+            <button type="submit">Kirim</button>
+        </form>
+    </div>
+</div>
+
+<style>
+    .ai-chat-widget { position: fixed; bottom: 24px; right: 24px; z-index: 9999; font-family: 'Inter', sans-serif; }
+    .chat-toggle-btn { background-color: var(--accent-color); color: var(--bg-main); border: none; padding: 12px 20px; border-radius: 30px; font-weight: bold; font-size: 13px; cursor: pointer; box-shadow: 0 10px 25px rgba(0,0,0,0.3); transition: transform 0.2s; display: flex; align-items: center; gap: 8px; }
+    .chat-toggle-btn:hover { transform: scale(1.05); }
+
+    .chat-window { position: absolute; bottom: 60px; right: 0; width: 320px; height: 420px; background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; display: flex; flex-direction: column; box-shadow: 0 20px 40px rgba(0,0,0,0.4); overflow: hidden; transition: all 0.3s ease; }
+    .chat-window.hidden { opacity: 0; visibility: hidden; transform: translateY(20px); pointer-events: none; }
+    
+    .chat-header { background-color: var(--bg-service); padding: 14px 16px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+    .chat-title { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-main); }
+    
+    /* Indikator status yang sudah diperbaiki dengan animasi denyut */
+    .status-dot { 
+        width: 8px; 
+        height: 8px; 
+        background-color: #10b981; 
+        border-radius: 50%; 
+        display: inline-block; 
+        box-shadow: 0 0 0 rgba(16, 185, 129, 0.4);
+        animation: pulse-dot 2s infinite; 
+    }
+
+    @keyframes pulse-dot {
+        0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+        70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    .chat-close-btn { background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; }
+    
+    .chat-body { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; font-size: 13px; }
+    .chat-message { padding: 10px 14px; border-radius: 8px; max-width: 85%; line-height: 1.4; word-break: break-word; }
+    .chat-message.bot { background-color: var(--bg-service); color: var(--text-main); align-self: flex-start; border: 1px solid var(--border-color); }
+    .chat-message.user { background-color: var(--accent-color); color: var(--bg-main); align-self: flex-end; font-weight: 500; }
+
+    .chat-footer { padding: 12px; border-top: 1px solid var(--border-color); display: flex; gap: 8px; background-color: var(--bg-card); }
+    .chat-footer input { flex: 1; background-color: var(--bg-service); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px 12px; border-radius: 6px; font-size: 12px; outline: none; }
+    .chat-footer button { background-color: var(--accent-color); color: var(--bg-main); border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; font-size: 12px; cursor: pointer; }
+</style>
+
+<script>
+    const fetchGeminiResponse = async (userMessage: string): Promise<string> => {
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: userMessage })
+            });
+
+            const data = await response.json();
+            
+            if (!response.ok) {
+                return `Server Error: ${data.error || 'Gagal memproses permintaan.'}`;
+            }
+
+            return data.reply || "Maaf, AI tidak memberikan respons.";
+        } catch (error) {
+            return "Terjadi kesalahan jaringan saat menghubungi server lokal.";
+        }
+    };
+
+    document.addEventListener('astro:page-load', () => {
+        const toggleBtn = document.getElementById('chatToggleBtn');
+        const closeBtn = document.getElementById('chatCloseBtn');
+        const chatWindow = document.getElementById('chatWindow');
+        const chatForm = document.getElementById('chatForm');
+        const chatInput = document.getElementById('chatInput') as HTMLInputElement;
+        const chatBody = document.getElementById('chatBody');
+
+        if (!toggleBtn || !chatWindow || !chatForm || !chatInput || !chatBody) return;
+
+        const toggleChat = () => chatWindow.classList.toggle('hidden');
+
+        toggleBtn.addEventListener('click', toggleChat);
+        closeBtn?.addEventListener('click', toggleChat);
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const messageText = chatInput.value.trim();
+            if (!messageText) return;
+
+            const userMsg = document.createElement('div');
+            userMsg.className = 'chat-message user';
+            userMsg.textContent = messageText;
+            chatBody.appendChild(userMsg);
+            
+            chatInput.value = '';
+            chatBody.scrollTop = chatBody.scrollHeight;
+
+            const loadingMsg = document.createElement('div');
+            loadingMsg.className = 'chat-message bot';
+            loadingMsg.textContent = 'Mengetik...';
+            chatBody.appendChild(loadingMsg);
+            chatBody.scrollTop = chatBody.scrollHeight;
+
+            const botReply = await fetchGeminiResponse(messageText);
+
+            loadingMsg.textContent = botReply;
+            chatBody.scrollTop = chatBody.scrollHeight;
+        });
+    });
+</script>

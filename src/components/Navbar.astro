@@ -1,0 +1,177 @@
+---
+// src/components/Navbar.astro
+---
+<header class="navbar" id="mainNavbar">
+    <div class="nav-container">
+        <a href="/" class="nav-brand">Ariban<span>.</span></a>
+        
+        <div class="nav-menu-wrapper">
+            <nav class="nav-menu">
+                <a href="/#services" class="nav-link">Services</a>
+                <a href="/#portfolio" class="nav-link">Portfolio</a>
+                <a href="/guestbook" class="nav-link">Guestbook</a>
+                <a href="/gear" class="nav-link">Gear</a>
+                <a href="/#contact" class="nav-link">Contact</a>
+            </nav>
+
+            <div class="nav-actions">
+                <a href="https://linkedin.com" target="_blank" class="nav-icon-link">In</a>
+                <a href="https://instagram.com" target="_blank" class="nav-icon-link">Ig</a>
+                
+                <!-- ACCENT COLOR PICKER -->
+                <div class="accent-picker" title="Pilih Warna Aksen">
+                    <button class="picker-trigger" type="button" aria-label="Warna Aksen">🎨</button>
+                    <div class="picker-dropdown">
+                        <button type="button" onclick="window.changeAccent('#eab308')" style="background: #eab308;" title="Gold"></button>
+                        <button type="button" onclick="window.changeAccent('#0ea5e9')" style="background: #0ea5e9;" title="Cyan"></button>
+                        <button type="button" onclick="window.changeAccent('#10b981')" style="background: #10b981;" title="Green"></button>
+                        <button type="button" onclick="window.changeAccent('#ec4899')" style="background: #ec4899;" title="Pink"></button>
+                        <button type="button" onclick="window.changeAccent('#8b5cf6')" style="background: #8b5cf6;" title="Purple"></button>
+                    </div>
+                </div>
+
+                <button id="themeToggle" class="theme-toggle-btn" type="button" aria-label="Toggle Theme">
+                    <span id="themeIcon">🌓</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</header>
+
+<style>
+    .navbar {
+        width: 100%;
+        padding: 30px 20px;
+        display: flex;
+        justify-content: center;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 1000;
+        background: rgba(11, 12, 16, 0.8);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--border-color);
+    }
+    [data-theme="light"] .navbar { background: rgba(248, 250, 252, 0.8); }
+
+    .nav-container {
+        width: 100%;
+        max-width: 1050px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .nav-brand { font-size: 24px; font-weight: 900; color: var(--text-main); letter-spacing: -0.5px; }
+    .nav-brand span {
+        color: var(--accent-color);
+        display: inline-block;
+    }
+
+    .nav-menu-wrapper { display: flex; align-items: center; gap: 30px; }
+    .nav-menu { display: flex; gap: 30px; align-items: center; }
+    
+    .nav-link { font-size: 14px; font-weight: 600; color: var(--text-muted); transition: color 0.3s ease; position: relative; }
+    .nav-link:hover, .nav-link.active { color: var(--text-main); }
+    .nav-link::after {
+        content: ''; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
+        width: 0; height: 3px; background: var(--accent-color);
+        border-radius: 4px; transition: width 0.3s ease;
+    }
+    .nav-link:hover::after, .nav-link.active::after { width: 24px; }
+
+    .nav-actions { display: flex; align-items: center; gap: 16px; border-left: 1px solid var(--border-color); padding-left: 30px; }
+    .nav-icon-link { color: var(--text-muted); font-size: 14px; font-weight: bold; transition: all 0.3s ease; }
+    .nav-icon-link:hover { color: var(--accent-color); transform: translateY(-2px); }
+    
+    /* Style Accent Picker Dropdown */
+    .accent-picker { position: relative; display: flex; align-items: center; }
+    .picker-trigger { background: none; border: none; cursor: pointer; font-size: 14px; transition: transform 0.2s; padding: 4px; }
+    .picker-trigger:hover { transform: scale(1.15); }
+    .picker-dropdown {
+        position: absolute;
+        top: 35px;
+        right: 0;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        padding: 8px;
+        border-radius: 6px;
+        display: flex;
+        gap: 6px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-10px);
+        transition: all 0.2s ease;
+    }
+    .accent-picker:hover .picker-dropdown {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+    }
+    .picker-dropdown button {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 1px solid rgba(255,255,255,0.2);
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+    .picker-dropdown button:hover { transform: scale(1.2); }
+
+    .theme-toggle-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; transition: all 0.3s ease; }
+    .theme-toggle-btn:hover { color: var(--accent-color); transform: scale(1.15); }
+
+    @media (max-width: 768px) { .nav-menu, .nav-actions { display: none; } }
+</style>
+
+<script is:inline>
+    // Daftarkan fungsi secara global agar bisa diakses lewat onclick inline HTML
+    window.changeAccent = function(colorHex) {
+        document.documentElement.style.setProperty('--accent-color', colorHex);
+        localStorage.setItem('custom_accent_color', colorHex);
+    };
+
+    document.addEventListener('astro:page-load', () => {
+        const toggleBtn = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const htmlElement = document.documentElement;
+
+        // Terapkan warna aksen kustom yang tersimpan di localStorage saat halaman dimuat
+        const savedAccent = localStorage.getItem('custom_accent_color');
+        if (savedAccent) {
+            htmlElement.style.setProperty('--accent-color', savedAccent);
+        }
+
+        // Init Theme Icon
+        const currentTheme = htmlElement.getAttribute('data-theme');
+        if (themeIcon) themeIcon.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+
+        if (toggleBtn) {
+            // Hapus event listener lama agar tidak terjadi duplikasi saat ViewTransitions
+            const newToggleBtn = toggleBtn.cloneNode(true);
+            toggleBtn.parentNode.replaceChild(newToggleBtn, toggleBtn);
+
+            newToggleBtn.addEventListener('click', () => {
+                const current = htmlElement.getAttribute('data-theme');
+                const newTheme = current === 'dark' ? 'light' : 'dark';
+                htmlElement.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                const iconSpan = document.getElementById('themeIcon');
+                if (iconSpan) iconSpan.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+            });
+        }
+
+        // Active Menu Logic
+        const navLinks = document.querySelectorAll('.nav-link');
+        const currentPath = window.location.pathname + window.location.hash;
+        
+        navLinks.forEach(link => {
+            link.classList.remove('active');
+            if (link.getAttribute('href') === currentPath || (currentPath === '/' && link.getAttribute('href') === '/#services')) {
+                link.classList.add('active');
+            }
+        });
+    });
+</script>
