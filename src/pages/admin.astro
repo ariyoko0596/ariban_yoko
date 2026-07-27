@@ -40,13 +40,20 @@ if (Astro.request.method === 'POST') {
         return Astro.redirect('/login');
     }
 
-    // A. UPDATE PENGATURAN SITUS
+    // A. UPDATE PENGATURAN SITUS & SOSIAL MEDIA
     if (action === 'update_settings') {
         const siteTitle = formData.get('siteTitle')?.toString();
         const heroBadge = formData.get('heroBadge')?.toString();
         const heroTitle = formData.get('heroTitle')?.toString();
         const heroDescription = formData.get('heroDescription')?.toString();
         const neonColor = formData.get('neonColor')?.toString();
+        
+        // Data Sosial Media & Kontak Baru
+        const socialInstagram = formData.get('socialInstagram')?.toString();
+        const socialLinkedin = formData.get('socialLinkedin')?.toString();
+        const socialGithub = formData.get('socialGithub')?.toString();
+        const socialEmail = formData.get('socialEmail')?.toString();
+        const socialWhatsapp = formData.get('socialWhatsapp')?.toString();
         
         const isMaintenance = formData.get('isMaintenance') === 'on';
         const oldProfileImage = formData.get('oldProfileImage')?.toString() || '';
@@ -86,6 +93,11 @@ if (Astro.request.method === 'POST') {
                 neon_color: neonColor,
                 profile_image: finalProfileImage,
                 is_maintenance: isMaintenance,
+                social_instagram: socialInstagram,
+                social_linkedin: socialLinkedin,
+                social_github: socialGithub,
+                social_email: socialEmail,
+                social_whatsapp: socialWhatsapp,
                 updated_at: new Date()
             }).eq('id', 1);
 
@@ -93,7 +105,7 @@ if (Astro.request.method === 'POST') {
                 isError = true;
                 pesan = `Gagal memperbarui pengaturan: ${error.message}`;
             } else {
-                pesan = "Pengaturan website & status maintenance berhasil diperbarui!";
+                pesan = "Pengaturan website, sosial media & status maintenance berhasil diperbarui!";
             }
         }
     }
@@ -609,6 +621,39 @@ const totalVisits = analyticsList ? analyticsList.length : 0;
                             <label>Warna Aksen Utama (HEX Code)</label>
                             <input type="text" name="neonColor" value={currentSettings?.neon_color || '#eab308'} required style="font-family: monospace;" />
                         </div>
+
+                        <!-- PENGATURAN TAUTAN SOSIAL MEDIA & KONTAK -->
+                        <div style="border-top: 1px solid #2d313d; margin-top: 24px; padding-top: 20px;">
+                            <h3 style="font-size: 15px; font-weight: bold; color: #ffffff; margin-bottom: 16px;">🔗 Pengaturan Tautan Sosial Media & Kontak</h3>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Link Instagram</label>
+                                    <input type="text" name="socialInstagram" value={currentSettings?.social_instagram || ''} placeholder="https://www.instagram.com/..." />
+                                </div>
+                                <div class="form-group">
+                                    <label>Link LinkedIn</label>
+                                    <input type="text" name="socialLinkedin" value={currentSettings?.social_linkedin || ''} placeholder="https://id.linkedin.com/in/..." />
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Link GitHub</label>
+                                    <input type="text" name="socialGithub" value={currentSettings?.social_github || ''} placeholder="https://github.com/..." />
+                                </div>
+                                <div class="form-group">
+                                    <label>Email Kontak</label>
+                                    <input type="text" name="socialEmail" value={currentSettings?.social_email || ''} placeholder="nama@domain.com" />
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Nomor WhatsApp (Format: 62895...)</label>
+                                <input type="text" name="socialWhatsapp" value={currentSettings?.social_whatsapp || ''} placeholder="6289501431852" />
+                            </div>
+                        </div>
+
                         <button type="submit" class="btn-submit">Simpan Perubahan Pengaturan</button>
                     </form>
                 </div>
