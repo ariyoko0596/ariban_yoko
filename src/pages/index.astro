@@ -3,7 +3,7 @@
 export const prerender = false;
 
 import Layout from '../layouts/Layout.astro';
-import TerminalPlayground from '../components/TerminalPlayground.astro'; // <--- Impor Terminal Playground
+import TerminalPlayground from '../components/TerminalPlayground.astro';
 import { supabase } from '../lib/supabase.js';
 
 // 1. Catat Kunjungan Otomatis (Analytics Tracker)
@@ -87,6 +87,8 @@ const siteConfig = settings || {
         }
         .hero-left h1 span { color: var(--accent-color); }
         .social-links { font-size: 12px; font-family: 'JetBrains Mono', monospace; color: var(--text-muted); margin-bottom: 24px; }
+        .social-links a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+        .social-links a:hover { color: var(--accent-color); }
         .btn-contact {
             display: inline-block;
             padding: 12px 28px;
@@ -98,6 +100,7 @@ const siteConfig = settings || {
             text-transform: uppercase;
             border-radius: 4px;
             transition: all 0.2s;
+            text-decoration: none;
         }
         .btn-contact:hover { background-color: var(--accent-color); color: var(--bg-main); }
 
@@ -195,7 +198,7 @@ const siteConfig = settings || {
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
-        .project-link { font-size: 12px; color: var(--accent-color); font-weight: 600; font-family: 'JetBrains Mono', monospace; transition: opacity 0.2s; }
+        .project-link { font-size: 12px; color: var(--accent-color); font-weight: 600; font-family: 'JetBrains Mono', monospace; transition: opacity 0.2s; text-decoration: none; }
         .project-link:hover { opacity: 0.8; }
 
         .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
@@ -218,7 +221,7 @@ const siteConfig = settings || {
         .contact-box h2 { font-size: 28px; font-weight: bold; color: var(--text-main); margin-bottom: 15px; }
         .contact-box p { font-size: 14px; max-width: 500px; margin: 0 auto 30px auto; color: var(--text-muted); line-height: 1.6; }
         .contact-buttons { display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; }
-        .btn-action { padding: 12px 24px; font-weight: bold; font-size: 12px; border-radius: 4px; text-transform: uppercase; transition: all 0.2s; }
+        .btn-action { padding: 12px 24px; font-weight: bold; font-size: 12px; border-radius: 4px; text-transform: uppercase; transition: all 0.2s; text-decoration: none; display: inline-block; }
         .btn-action.primary { background: var(--accent-color); color: var(--bg-main); }
         .btn-action.primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(234, 179, 8, 0.3); }
         .btn-action.secondary { background: var(--bg-service); color: var(--text-main); border: 1px solid var(--border-color); }
@@ -230,9 +233,21 @@ const siteConfig = settings || {
         <div class="hero-left">
             <h1>Ariban<br>Yoko<span>.</span></h1>
             <div class="social-links">
-                <a href="https://www.instagram.com/aribanyoko" target="_blank">Instagram</a> | 
-                <a href="https://id.linkedin.com/in/ariban-yoko-05068b137" target="_blank">LinkedIn</a><br>
-                <span>Behance</span> | <span>Dribbble</span>
+                {settings?.social_instagram ? (
+                    <a href={settings.social_instagram} target="_blank">Instagram</a>
+                ) : (
+                    <span>Instagram</span>
+                )} | 
+                {settings?.social_linkedin ? (
+                    <a href={settings.social_linkedin} target="_blank">LinkedIn</a>
+                ) : (
+                    <span>LinkedIn</span>
+                )}<br>
+                {settings?.social_github ? (
+                    <a href={settings.social_github} target="_blank">GitHub</a>
+                ) : (
+                    <span>GitHub</span>
+                )} | <span>Behance</span>
             </div>
             <a href="#contact" class="btn-contact">CONTACT ME</a>
         </div>
@@ -251,7 +266,7 @@ const siteConfig = settings || {
             <span class="intro-tag">{settings?.hero_badge || 'INTRODUCTION'}</span>
             <h2>{siteConfig.hero_title}</h2>
             <p>{siteConfig.hero_description}</p>
-            <a href="#services" style="font-size: 13px; color: var(--accent-color); font-weight: bold;">Learn More ↓</a>
+            <a href="#services" style="font-size: 13px; color: var(--accent-color); font-weight: bold; text-decoration: none;">Learn More ↓</a>
         </div>
     </section>
 
@@ -463,9 +478,13 @@ const siteConfig = settings || {
             <h2>Let's Build Something Amazing Together</h2>
             <p>Tertarik berdiskusi seputar arsitektur backend, otomasi sistem, atau kolaborasi profesional? Hubungi saya melalui tautan di bawah ini.</p>
             <div class="contact-buttons">
-                <a href="mailto:ariban.yoko0596@gmail.com" class="btn-action primary">✉️ Email Me</a>
-                <a href="https://id.linkedin.com/in/ariban-yoko-05068b137" target="_blank" class="btn-action secondary">💼 LinkedIn</a>
-                <a href="https://wa.me/6289501431852" target="_blank" class="btn-action secondary">📞 WhatsApp</a>
+                <a href={`mailto:${settings?.social_email || 'ariban.yoko0596@gmail.com'}`} class="btn-action primary">✉️ Email Me</a>
+                {settings?.social_linkedin && (
+                    <a href={settings.social_linkedin} target="_blank" class="btn-action secondary">💼 LinkedIn</a>
+                )}
+                {settings?.social_whatsapp && (
+                    <a href={`https://wa.me/${settings.social_whatsapp}`} target="_blank" class="btn-action secondary">📞 WhatsApp</a>
+                )}
             </div>
         </div>
     </section>
